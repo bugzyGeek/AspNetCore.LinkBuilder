@@ -6,38 +6,42 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace AspNetCore.LinkBuilder.Filters
+namespace AspNetCore.LinkBuilder.Filters;
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public class HypermediaAttribute(LinkPolicy policy = LinkPolicy.OnDemand, bool enableCaching = false) : Attribute, IAsyncResultFilter
 {
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-    public class HypermediaAttribute(LinkPolicy policy = LinkPolicy.OnDemand, bool enableCaching = false) : Attribute, IAsyncResultFilter
+    public LinkPolicy Policy { get; } = policy;
+    public bool EnableCaching { get; } = enableCaching;
+
+    public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
     {
-        public LinkPolicy Policy { get; } = policy;
-        public bool EnableCaching { get; } = enableCaching;
+        var request = context.HttpContext.Request;
+        var acceptHeader = request.Headers["Accept"].ToString();
 
-        public async Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)
+        // Improved Accept header handling: split by commas and handle media type parameters.
+        var mediaTypes = acceptHeader
+            .Split(',')
+            .Select(mt => mt.Split(';')[0].Trim());
+
+        bool isHateoasRequested = mediaTypes
+            .Any(mt => mt.Contains("hateoas", StringComparison.OrdinalIgnoreCase));
+
+        if ((Policy == LinkPolicy.OnDemand && !isHateoasRequested) || Policy == LinkPolicy.Never)
         {
-            var request = context.HttpContext.Request;
-            var acceptHeader = request.Headers["Accept"].ToString();
-
-            // Evaluate OnDemand trigger
-            if ((Policy == LinkPolicy.OnDemand && !acceptHeader.Contains("hateoas", StringComparison.OrdinalIgnoreCase)) || Policy == LinkPolicy.Never)
-            {
-                await next();
-                return;
-            }
-
-            if (context.Result is ObjectResult result && result.Value is IHasLinks entity)
-            {
-                var registry = context.HttpContext.RequestServices.GetRequiredService<LinkBuilderRegistry>();
-                var urlHelperFactory = context.HttpContext.RequestServices.GetRequiredService<IUrlHelperFactory>();
-                var urlHelper = urlHelperFactory.GetUrlHelper(context);
-
-                entity.Links = registry.GenerateLinks(entity, urlHelper, Policy, EnableCaching);
-            }
-
             await next();
+            return;
         }
+
+        if (context.Result is ObjectResult result && result.Value is IHasLinks entity)
+        {
+            var registry = context.HttpContext.RequestServices.GetRequiredService<LinkBuilderRegistry>();
+            var urlHelperFactory = context.HttpContext.RequestServices.GetRequiredService<IUrlHelperFactory>();
+            var urlHelper = urlHelperFactory.GetUrlHelper(context);
+
+            entity.Links = registry.GenerateLinks(entity, urlHelper, Policy, EnableCaching);
+        }
+
+        await next();
     }
-
-
 }

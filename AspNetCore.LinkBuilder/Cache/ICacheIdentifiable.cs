@@ -1,8 +1,6 @@
-﻿namespace AspNetCore.LinkBuilder.Cache
-{
-    public interface ICacheIdentifiable
-    {
-        string GetCacheKey();
-    }
+﻿namespace AspNetCore.LinkBuilder.Cache;
 
+public interface ICacheIdentifiable
+{
+    string GetCacheKey();
 }

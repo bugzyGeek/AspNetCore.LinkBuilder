@@ -1,11 +1,8 @@
-﻿namespace AspNetCore.LinkBuilder.Enums
+﻿namespace AspNetCore.LinkBuilder.Enums;
+
+public enum LinkPolicy
 {
-    public enum LinkPolicy
-    {
-        Always,
-        OnDemand,
-        Never
-    }
-
-
+    Always,
+    OnDemand,
+    Never
 }
